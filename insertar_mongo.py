@@ -1,22 +1,46 @@
-import pandas as pd
-from conexion_mongo import ObtenerConexion  # Importa la función desde el archivo conexion.py
+import csv
+from pymongo import MongoClient
 
-# Nombre del archivo CSV
-archivo_csv = 'coronavirus.csv'  # Reemplaza con la ruta de tu archivo CSV
+class InsertarMongo:
+    def __init__(self, db_url, db_name, csv_file):
+        self.db_url = db_url
+        self.db_name = db_name
+        self.csv_file = csv_file
 
-# Cargar los datos desde el archivo CSV en un DataFrame
-df = pd.read_csv(archivo_csv, usecols=[
-    'age', 'city', 'confirmed_date', 'country', 'date_onset_symptoms',
-    'deceased_date', 'infected_by', 'recovery_test', 'region', 'sex', 'smoking', 'deceased_date_D'
-])
+    def insertar_datos(self, limite=1000000):
+        try:
+            # Conectar a la base de datos MongoDB
+            client = MongoClient(self.db_url)
+            db = client[self.db_name]
+            collection = db["covid_data"]
 
-# Llamar a la función para obtener la colección MongoDB
-coleccion = ObtenerConexion()
+            # Abre el archivo CSV y procesa los datos
+            with open(self.csv_file, 'r') as archivo_csv:
+                lector_csv = csv.DictReader(archivo_csv)
+                contador = 0  # Contador para seguir la cantidad de filas insertadas
+                for fila in lector_csv:
+                    if contador >= limite:
+                        break  # Salir del bucle después de alcanzar el límite de inserción
+                    # Filtra y selecciona los campos que deseas insertar
+                    datos = {
+                        'age': fila.get('age', None),
+                        'city': fila.get('city', None),
+                        'confirmed_date': fila.get('confirmed_date', None),
+                        'country': fila.get('country', None),
+                        'date_onset_symptoms': fila.get('date_onset_symptoms', None),
+                        'deceased_date': fila.get('deceased_date', None),
+                        'infected_by': fila.get('infected_by', None),
+                        'recovery_test': fila.get('recovery_test', None),
+                        'region': fila.get('region', None),
+                        'sex': fila.get('sex', None),
+                        'smoking': fila.get('smoking', None),
+                        'deceased_date_D': fila.get('deceased_date_D', None)
+                    }
 
-if coleccion is not None:
-    # Insertar los datos en la colección
-    registros = df.to_dict(orient='records')
-    coleccion.insert_many(registros)
-    print(f"Se insertaron {len(registros)} registros en la colección.")
-else:
-    print("No se pudo conectar a MongoDB. Verifica la configuración en conexion.py.")
+                    # Inserta los datos en la colección MongoDB
+                    collection.insert_one(datos)
+                    print("Datos insertados en MongoDB correctamente.")
+                    contador += 1  # Incrementar el contador de filas insertadas
+
+        except Exception as e:
+            print(f"Error al insertar datos en MongoDB: {e}")

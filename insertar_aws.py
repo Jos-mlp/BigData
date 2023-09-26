@@ -26,7 +26,7 @@ class InsertarAWS:
         self.last_id_covid += 1
         return self.last_id_covid
 
-    def insertar_datos(self):
+    def insertar_datos(self, limite=1000000):
         try:
             # Conectar a AWS DynamoDB
             self.dynamodb = boto3.client(
@@ -39,36 +39,39 @@ class InsertarAWS:
             # Abre el archivo CSV y procesa los datos
             with open(self.csv_file, 'r') as archivo_csv:
                 lector_csv = csv.DictReader(archivo_csv)
+                contador = 0  # Contador para seguir la cantidad de filas insertadas
                 for fila in lector_csv:
+                    if contador >= limite:
+                        break  # Salir del bucle después de alcanzar el límite de inserción
                     # Obtén el próximo valor único para Id_covid
                     id_covid = self.obtener_ultimo_id_covid()
 
                     # Construye el registro a insertar
                     datos = {
-                        'Id_': {'S': f'A{id_covid}'},
+                        'Id_covid': {'S': f'A{id_covid}'},
+                        'age': {'N': fila.get('age', '0')},
+                        # Puedes cambiar '0' por otro valor predeterminado si lo deseas
+                        'city': {'S': fila.get('city', '')},
+                        'confirmed_date': {'S': fila.get('confirmed_date', '')},
+                        'country': {'S': fila.get('country', '')},
+                        'date_onset_symptoms': {'S': fila.get('date_onset_symptoms', '')},
+                        'deceased_date': {'S': fila.get('deceased_date', '')},
+                        'infected_by': {'N': fila.get('infected_by', '0')},
+                        # Puedes cambiar '0' por otro valor predeterminado si lo deseas
+                        'recovery_test': {'S': fila.get('recovery_test', '')},
+                        'region': {'S': fila.get('region', '')},
+                        'sex': {'S': fila.get('sex', '')},
+                        'smoking': {'S': fila.get('smoking', '')},
+                        'deceased_date_D': {'S': fila.get('deceased_date_D', '')},
                     }
-
-                    # Campos que se manejarán para evitar la inserción de campos vacíos
-                    campos_a_manipular = ['age', 'infected_by']
-
-                    # Itera sobre todos los campos del archivo CSV
-                    for campo, valor in fila.items():
-                        # Verifica si el campo está en la lista de campos a manipular
-                        if campo in campos_a_manipular:
-                            # Verifica si el valor es numérico antes de insertarlo como número
-                            if valor.strip() and valor.replace('.', '', 1).isdigit():
-                                datos[campo] = {'N': valor}
-                        else:
-                            # Inserta los otros campos de manera normal (sin verificación de campo vacío)
-                            if valor.strip():
-                                datos[campo] = {'S': valor}
 
                     # Inserta los datos en la tabla DynamoDB
                     self.dynamodb.put_item(
                         TableName=self.table_name,
                         Item=datos
                     )
+                    contador += 1  # Incrementar el contador de filas insertadas
 
-            print("Datos insertados en AWS DynamoDB correctamente.")
+            print(f"Se insertaron {contador} datos en AWS DynamoDB.")
         except Exception as e:
             print(f"Error al insertar datos en AWS DynamoDB: {e}")
